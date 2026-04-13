@@ -1,0 +1,560 @@
+\chapter{Theoretical Foundations}
+\label{chap:theoretical_foundations}
+
+\section{Nonlinear Bayesian Filtering Framework}
+\label{sec:nonlinear_bayesian_filtering}
+
+The state estimation problem is formulated as a discrete-time state-space model. This model consists of two equations, namely the state equation, which describes the evolution of the system state, and the measurement equation, which describes the mapping from the system state to the sensor observations
+\begin{align}
+	\vx_k &= f_k(\vx_{k-1}, \vv_{k-1}) \label{eq:state_equation} \enspace, \\
+	\vy_k &= h_k(\vx_k, \vn_k) \label{eq:measurement_equation} \enspace,
+\end{align}
+where $k \in \IN$ denotes the discrete time step; $\vx_k \in \IR^{N_x}$ is the system state vector at time $k$; $\vy_k \in \IR^{N_y}$ is the sensor observation vector; $f_k(\cdot)$ and $h_k(\cdot)$ denote the nonlinear state transition function and observation function, respectively; and $\vv_{k-1}$ and $\vn_k$ are the mutually independent process noise and measurement noise, respectively.
+
+From a probabilistic perspective, these two equations define two probability density functions for the system:
+
+\paragraph{State transition density $p(\vx_k \mid \vx_{k-1})$} Given the previous state $\vx_{k-1}$, the randomness of the current state $\vx_k$ is entirely determined by the process noise $\vv_{k-1}$. Therefore, the state transition density is induced by mapping the process noise through the state equation $f_k$.
+
+\paragraph{Observation likelihood $p(\vy_k \mid \vx_k)$} Similarly, when the state $\vx_k$ is given, the randomness of the observation $\vy_k$ is entirely determined by the measurement noise $\vn_k$. The observation likelihood is therefore induced by mapping the measurement noise through the observation equation $h_k$.
+
+Given the prior distribution of the initial state $p(\vx_0)$ and the observation sequence up to time $k$, denoted by $\vy_{1:k} = \{\vy_1, \dots, \vy_k\}$, Bayesian filtering recursively computes the posterior probability density function $p(\vx_k \mid \vy_{1:k})$ of the current state. This recursive process alternates between two core steps: prediction and update.
+
+\paragraph{Prediction step}
+
+The prediction step propagates the posterior density $p(\vx_{k-1} \mid \vy_{1:k-1})$ from the previous time step through the state transition model to obtain the prior density $p(\vx_k \mid \vy_{1:k-1})$ at the current time step. This density serves as the prior for the subsequent update step. Its mathematical expression is the Chapman--Kolmogorov integral
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k-1}) = \int p(\vx_k \mid \vx_{k-1}) p(\vx_{k-1} \mid \vy_{1:k-1}) \dd\vx_{k-1}
+	\label{eq:chapman_kolmogorov}\enspace.
+\end{equation}
+
+\paragraph{Update step}
+
+The update step applies Bayes' theorem by combining the observation likelihood $p(\vy_k \mid \vx_k)$ with the prior density $p(\vx_k \mid \vy_{1:k-1})$ obtained in the prediction step, thereby yielding the posterior density
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k}) = \frac{p(\vy_k \mid \vx_k)\, p(\vx_k \mid \vy_{1:k-1})}{p(\vy_k \mid \vy_{1:k-1})}
+	\label{eq:bayes_update}\enspace.
+\end{equation}
+
+The denominator is given by
+\[
+p(\vy_k \mid \vy_{1:k-1}) = \int p(\vy_k \mid \vx_k)\, p(\vx_k \mid \vy_{1:k-1}) \dd\vx_k\enspace,
+\]
+and it is a normalization constant that ensures the posterior density integrates to one.
+
+For nonlinear systems, the integrals in \Eq{eq:chapman_kolmogorov} and \Eq{eq:bayes_update} generally cannot be evaluated in closed form because of the nonlinear functions $f_k$ and $h_k$. Therefore, particle filtering methods are employed \cite{PF01}.
+
+\section{Particle Filter Principles}
+\label{sec:particle_filter_principles}
+
+\subsection{Traditional Particle Filter with Systematic Resampling}
+\label{subsec:tpf_resampling}
+
+The traditional \ac{pf} represents the target probability distribution by a set of weighted particles.
+
+Assume that at time $k-1$, the posterior density $p(\vx_{k-1} \mid \vy_{1:k-1})$ is represented by a \ac{dmd} with $L$ particles
+\begin{equation}
+	p(\vx_{k-1} \mid \vy_{1:k-1}) \approx \sum_{i=1}^L w_{k-1}^{(i)} \delta(\vx_{k-1} - \vx_{k-1}^{(i)})\enspace,
+	\label{eq:dmd_posterior}
+\end{equation}
+characterized by the particle locations $\left\{ \vx_{k-1}^{(i)} \right\}_{i=1}^L$ and weights $\left\{ w_{k-1}^{(i)} \right\}_{i=1}^L$, where $\sum_{i=1}^L w_{k-1}^{(i)} = 1$. Based on this discrete representation, the two core steps of the \ac{pf} can be derived by substituting \Eq{eq:dmd_posterior} into \Eq{eq:chapman_kolmogorov} and \Eq{eq:bayes_update}.
+
+\paragraph{Prediction step}
+
+Substituting the posterior \ac{dmd} from the previous update step into the Chapman--Kolmogorov equation \Eq{eq:chapman_kolmogorov} yields the prior density at time $k$
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k-1}) = \int p(\vx_k \mid \vx_{k-1}) \sum_{i=1}^L w_{k-1}^{(i)} \delta(\vx_{k-1} - \vx_{k-1}^{(i)}) \dd\vx_{k-1} \enspace.
+\end{equation}
+Using the property of the Dirac delta function, $\int f(\vx)\delta(\vx-\va)\dd \vx = f(\va)$, the integral reduces to a finite sum
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k-1}) = \sum_{i=1}^L w_{k-1}^{(i)} p(\vx_k \mid \vx_{k-1}^{(i)}) \enspace.
+\end{equation}
+Thus, the prior density is composed of $L$ state transition densities. To maintain a discrete particle representation, one sample is drawn from each transition density $p(\vx_k \mid \vx_{k-1}^{(i)})$. Specifically, for each particle $\vx_{k-1}^{(i)}$, a process noise sample $\vv_{k-1}^{(i)}$ is drawn to generate a predicted particle
+\[
+\vx_k^{(i)} = f_k(\vx_{k-1}^{(i)}, \vv_{k-1}^{(i)})\enspace.
+\]
+Consequently, the prior density is approximated as
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k-1}) \approx \sum_{i=1}^L w_{k-1}^{(i)} \delta(\vx_k - \vx_k^{(i)})\enspace.
+	\label{eq:pf_prior_discrete}
+\end{equation}
+In the prediction step, the particle positions are updated while the weights remain unchanged.
+
+\paragraph{Update step}
+
+Once the observation $\vy_k$ becomes available at time $k$, the prior \ac{dmd} in \Eq{eq:pf_prior_discrete} is substituted into the Bayes update formula \Eq{eq:bayes_update}, and the posterior density becomes
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k}) = \frac{p(\vy_k \mid \vx_k) \sum_{i=1}^L w_{k-1}^{(i)} \delta(\vx_k - \vx_k^{(i)})}{\int p(\vy_k \mid \vx_k) \sum_{j=1}^L w_{k-1}^{(j)} \delta(\vx_k - \vx_k^{(j)}) \dd\vx_k} \enspace.
+\end{equation}
+Again using the delta-function property, this expression simplifies to
+\begin{equation}
+	p(\vx_k \mid \vy_{1:k}) = \frac{1}{\sum_{j=1}^L w_{k-1}^{(j)} p(\vy_k \mid \vx_k^{(j)})} \sum_{i=1}^L w_{k-1}^{(i)} p(\vy_k \mid \vx_k^{(i)}) \delta(\vx_k - \vx_k^{(i)}) \enspace.
+\end{equation}
+Thus, the recursive weight update is
+\begin{equation}
+	w_k^{(i)} = \frac{w_{k-1}^{(i)} p(\vy_k \mid \vx_k^{(i)})}{\sum_{j=1}^L w_{k-1}^{(j)} p(\vy_k \mid \vx_k^{(j)})}
+	\quad \Rightarrow \quad
+	w_k^{(i)} \propto w_{k-1}^{(i)} p(\vy_k \mid \vx_k^{(i)})\enspace.
+	\label{eq:weight_update_rule}
+\end{equation}
+In the update step, the particle weights are updated while the particle positions remain unchanged.
+
+\paragraph{Particle degeneracy}
+
+In practice, the weight update mechanism often leads to particle degeneracy. According to \Eq{eq:weight_update_rule}, the weight of each particle depends on its likelihood value. In high-dimensional nonlinear state estimation, two challenging situations are frequently encountered. First, highly accurate sensors can produce an extremely narrow likelihood distribution. Second, strong system nonlinearity or model error can result in very limited overlap between the predicted particles and the effective support of the likelihood.
+
+In both cases, almost all prior particles lie outside the effective support of the likelihood. Their likelihood values become extremely small or even vanish numerically. After normalization, the weights concentrate on only a few particles located within the effective support of the likelihood, while the weights of most particles decay to zero. These negligible-weight particles no longer contribute meaningfully to subsequent prediction and update steps. This phenomenon is known as particle degeneracy \cite{PF02}.
+
+\paragraph{Systematic resampling}
+
+Systematic resampling is introduced to alleviate particle degeneracy \cite{PF01}. First, a discrete cumulative distribution function (CDF) is constructed from the normalized particle weights $\{w_k^{(i)}\}_{i=1}^L$. Next, the interval $[0,1]$ is divided into $L$ subintervals of length $1/L$, and an initial random offset $U \sim \mathcal{U}[0, 1/L]$ is drawn from the first subinterval. A sequence of equally spaced pointers is then defined by
+\[
+u_j = U + \frac{j-1}{L}, \quad j = 1, 2, \dots, L\enspace.
+\]
+These $L$ pointers are mapped onto the CDF. Particles with larger weights occupy wider intervals on the CDF and are therefore selected more frequently; by contrast, degenerate particles with near-zero weights occupy vanishingly small intervals and are effectively skipped. Through this procedure, low-weight particles are discarded and high-weight particles are replicated. After resampling, the weights of the $L$ new particles are reset to the uniform value $1/L$ for use in the next prediction step.
+\clearpage
+
+\paragraph{Sample impoverishment}
+
+The resampled particle set contains many duplicates of high-weight particles, which reduces particle diversity \cite{PF01,PF02}. In the subsequent prediction step, if the process noise is small, the perturbations introduced by the state equation may be insufficient to separate these overlapping particles. As a result, the particle set may collapse to only a few distinct points, leading to degraded estimation accuracy or even divergence in high-dimensional nonlinear systems.
+
+\subsection{Gaussian Particle Filter}
+\label{subsec:gpf}
+
+In the \ac{gpf}, the filtering result at each time step is approximated by a unimodal multivariate Gaussian distribution \cite{GPF}.
+
+\paragraph{Prediction step}
+
+Assume that at time $k-1$, the posterior density is approximated by a multivariate Gaussian distribution $\mathcal{N}(\hat{\vx}_{k-1}, \mathbf{P}_{k-1})$ with mean $\hat{\vx}_{k-1}$ and covariance matrix $\mathbf{P}_{k-1}$. In the prediction step at time $k$, the \ac{gpf} discards the particle set from the previous time step and instead draws $L$ independent and identically distributed (i.i.d.) particles from the current posterior Gaussian distribution
+\begin{equation}
+	\vx_{k-1}^{(i)} \sim \mathcal{N}(\hat{\vx}_{k-1}, \mathbf{P}_{k-1}), \quad i = 1, 2, \dots, L\enspace.
+\end{equation}
+These particles are assigned equal weights $w_{k-1}^{(i)} = 1/L$. They are then propagated through the nonlinear system equation with random process noise $\vv_{k-1}^{(i)}$ to obtain the prior particle set at time $k$
+\begin{equation}
+	\vx_k^{(i)} = f_k(\vx_{k-1}^{(i)}, \vv_{k-1}^{(i)})\enspace.
+\end{equation}
+
+\paragraph{Update step}
+
+When the observation $\vy_k$ becomes available at time $k$, the \ac{gpf} updates the particle weights using Bayes' theorem
+\begin{equation}
+	w_k^{(i)} \propto \frac{1}{L} \cdot p(\vy_k \mid \vx_k^{(i)})\enspace.
+\end{equation}
+After weight normalization, the \ac{gpf} uses the weighted particle set to compute the posterior mean $\hat{\vx}_k$ and posterior covariance $\mathbf{P}_k$ at the current time step via the empirical moment estimators
+\begin{equation}
+	\hat{\vx}_k = \sum_{i=1}^L w_k^{(i)} \vx_k^{(i)}\enspace,
+\end{equation}
+and
+\begin{equation}
+	\mathbf{P}_k = \sum_{i=1}^L w_k^{(i)} (\vx_k^{(i)} - \hat{\vx}_k)(\vx_k^{(i)} - \hat{\vx}_k)^\top\enspace,
+\end{equation}
+respectively. The parameterized Gaussian distribution $\mathcal{N}(\hat{\vx}_k, \mathbf{P}_k)$ is then used as the posterior density at time $k$ for the next prediction step.
+
+By resampling from a Gaussian distribution at every time step, the \ac{gpf} avoids direct replication of high-weight particles. As a result, the particles remain independent and diverse, which effectively prevents sample impoverishment. However, because the \ac{gpf} relies on a unimodal Gaussian approximation, it can suffer from severe model mismatch in highly nonlinear systems, leading to inaccurate estimates or even filter divergence.
+
+\section{Theoretical Basis of the Newton-Flow Filter}
+\label{sec:newtonflow_theory}
+
+\subsection{Localized Cumulative Distribution}
+\label{subsec:lcd}
+
+In multidimensional spaces, traditional cumulative distribution functions (CDFs) suffer from major limitations, including a lack of symmetry and non-uniqueness. For example, there are $2^N$ different ways to define a CDF in an $N$-dimensional space. To overcome these issues, the concept of the \ac{lcd} is introduced \cite{LCD}.
+
+For a random vector $\vx \in \IR^N$ with probability density function $f(\vx)$, the \ac{lcd} $F(\vm, \vb)$ is defined as the integral of the density against a smoothing kernel function $K$
+\begin{equation}
+	F(\vm, \vb) = \int_{\IR^N} f(\vx) K(\vx-\vm, \vb) \dd\vx \enspace.
+	\label{eq:lcd_definition}
+\end{equation}
+
+The intuition behind the \ac{lcd} is that by shifting the observation location $\vm$ across the state space and continuously varying the kernel width $\vb$, the particles in a \ac{dmd} can be probed at different positions and resolutions. Small kernel widths reveal fine local structure, whereas large kernel widths capture coarse global structure. Consequently, kernels with different locations and widths make it possible to extract all characteristic features of a Dirac mixture distribution.
+
+\subsection{Modified Cramér--von Mises Distance}
+\label{subsec:cvm_distance}
+
+Based on the \ac{lcd} defined in \Eq{eq:lcd_definition}, the distance between two Dirac mixture distributions is defined as the integrated squared difference between their corresponding \ac{lcd}s over all possible observation locations $\vm$ and all possible kernel widths $b$. This quantity is known as the modified \ac{cvm} distance \cite[Sec.~3]{LCD}
+\begin{equation}
+	D = \int_{\IR_+} w(b) \int_{\IR^N} \left( \tilde{F}(\vm, b) - F(\vm, b) \right)^2 \dd\vm \dd b \enspace,
+	\label{eq:cvm_integral}
+\end{equation}
+where $w(b)$ is a bandwidth-dependent weight function. Its role is to assign different weights to \ac{lcd} discrepancies at different kernel widths.
+
+The kernel function is chosen as an independent Gaussian kernel in each dimension
+\begin{equation}
+	K(\vx - \vm, b) = \prod_{k=1}^N \exp\!\left(-\frac{1}{2}\frac{(x^{(k)} - m^{(k)})^2}{b^2}\right) \enspace.
+\end{equation}
+The weight function is set to $w(b) = \frac{1}{b^{N-1}}$.
+
+By the sifting property of the Dirac delta function, the \ac{lcd} of a Dirac mixture density can be written as a weighted sum of unnormalized Gaussian kernels centered at the particle locations \cite{OPTREDUC}
+\begin{equation}
+	F(\vm, b) = \sum_{i=1}^L w_i^x \prod_{k=1}^N \exp\!\left(-\frac{1}{2}\frac{(x_i^{(k)} - m^{(k)})^2}{b^2}\right) \enspace.
+\end{equation}
+
+If $b$ is fixed, $F(\vm, b)$ can be interpreted as an unnormalized kernel density estimate (KDE). To clarify the role of the weight function $w(b)$, it is helpful to derive the distance from the perspective of a normalized KDE with unit integral.
+
+A normalized multivariate Gaussian KDE $\hat{f}(\vm, b)$ includes the normalization factor $\frac{1}{(2\pi b^2)^{N/2}}$ to ensure that its integral equals one
+\begin{equation}
+	\hat{f}(\vm, b) = \sum_{i=1}^L w_i^x \frac{1}{(2\pi b^2)^{\frac{N}{2}}} \prod_{k=1}^N \exp\!\left(-\frac{1}{2}\frac{(x_i^{(k)} - m^{(k)})^2}{b^2}\right) \enspace.
+\end{equation}
+Comparing this expression with the unnormalized \ac{lcd} $F(\vm, b)$ shows that the \ac{lcd} is simply the normalized KDE multiplied by $(2\pi b^2)^{N/2}$. Therefore,
+\begin{equation}
+	F(\vm, b) = (2\pi b^2)^{\frac{N}{2}} \cdot \hat{f}(\vm, b) \propto b^N \hat{f}(\vm, b) \enspace.
+\end{equation}
+Substituting this relation into the spatial integral in the distance measure $D$ in \Eq{eq:cvm_integral} yields
+\begin{equation}
+	\int_{\IR^N} \left( \tilde{F}(\vm, b) - F(\vm, b) \right)^2 \dd\vm \propto b^{2N} \int_{\IR^N} \left( \hat{\tilde{f}}(\vm, b) - \hat{f}(\vm, b) \right)^2 \dd\vm \enspace.
+\end{equation}
+
+For the \ac{cvm} distance of the unnormalized \ac{lcd}, the weight function is $w(b) = \frac{1}{b^{N-1}}$. After normalization, the corresponding KDE weight becomes
+\begin{equation}
+	w(b) \cdot b^{2N} = \frac{1}{b^{N-1}} \cdot b^{2N} = b^{N+1} \enspace.
+\end{equation}
+From the perspective of the normalized KDE, the modified Cramér--von Mises distance is therefore equivalent to
+\begin{equation}
+	D = (2\pi)^N \int_0^{b_{\max}} b^{N+1} \int_{\IR^N} \Big( \hat{\tilde{f}}(\vm, b) - \hat{f}(\vm, b) \Big)^2 \dd\vm \dd b \enspace.
+\end{equation}
+
+This interpretation shows that the \ac{cvm} distance effectively assigns a weight proportional to $b^{N+1}$ to the squared discrepancy between the KDEs of two Dirac mixture densities over different widths. Consequently, as the kernel width increases, the discrepancy at that width contributes more strongly to the overall distance.
+
+In practical computations, the upper limit of the bandwidth integral is truncated to $b_{\max}$. Because of the $b^{N+1}$ factor, if $b_{\max}$ is large, discrepancies at large bandwidths dominate the distance measure. According to \cite[Theorem~4.2]{OPTREDUC}, the distance measure $D$ can then be approximated by
+\begin{equation}
+	D \approx \frac{\pi^{\frac{N}{2}}}{8} \left( D_{\vy\vy} - 2D_{\vx\vy} + D_{\vx\vx} \right) + \frac{\pi^{\frac{N}{2}}}{4} C_b D_E \enspace,
+	\label{eq:CVM_Distance}
+\end{equation}
+where
+\begin{equation}
+	D_{\vx\vy} = \sum_{i=1}^L \sum_{j=1}^M w_i^x w_j^y \log\!\left( \sum_{k=1}^N (x_i^{(k)} - y_j^{(k)})^2 \right) \enspace,
+	\label{eq:CVM_Dxy}
+\end{equation}
+and $D_E$ is the squared difference between the means of the two distributions
+\begin{equation}
+	D_E = \sum_{k=1}^N \left( \sum_{i=1}^L w_i^x x_i^{(k)} - \sum_{j=1}^M w_j^y y_j^{(k)} \right)^2 = \|\vmu_x - \vmu_y\|^2 \enspace.
+	\label{eq:CVM_DE}
+\end{equation}
+The constant $C_b = \log(4b_{\max}^2) - \gamma$ depends entirely on the choice of $b_{\max}$. A larger $C_b$ implies that wide-bandwidth KDE discrepancies contribute more strongly to the distance, making the measure increasingly dominated by the mean difference $D_E$.
+
+The reasoning starts from the identity
+\begin{equation}
+	\int_{\IR^N} (\tilde{F} - F)^2 \dd\vm = \int_{\IR^N} \tilde{F}^2 \dd\vm + \int_{\IR^N} F^2 \dd\vm - 2\int_{\IR^N} \tilde{F}F \dd\vm \enspace.
+    \label{eq:original_integral}
+\end{equation}
+Using the product--integral property of Gaussian functions, the variable $\vm$ can be integrated out
+\begin{equation}
+	\int_{\IR^N} \exp\!\left(-\frac{\|\vu - \vm\|^2}{2b^2}\right) \exp\!\left(-\frac{\|\vv - \vm\|^2}{2b^2}\right) \dd\vm = (\pi b^2)^{\frac{N}{2}} \exp\!\left(-\frac{\|\vu - \vv\|^2}{4b^2}\right) \enspace.
+\end{equation}
+
+The original integral~\Eq{eq:original_integral} can then be transformed into three double sums,
+\begin{equation}
+	\propto \sum_{i,j=1}^M w_i^y w_j^y e^{-\frac{\|\vy_i - \vy_j\|^2}{4b^2}} + \sum_{i,j=1}^L w_i^x w_j^x e^{-\frac{\|\vx_i - \vx_j\|^2}{4b^2}} - 2 \sum_{i=1}^L \sum_{j=1}^M w_i^x w_j^y e^{-\frac{\|\vx_i - \vy_j\|^2}{4b^2}} \enspace.
+\end{equation}
+As $b \to \infty$, because $\lim_{b \to \infty} \frac{\|\vu - \vv\|^2}{4b^2} = 0$, the first-order Taylor expansion $e^{-z} \approx 1 - z$ can be used,
+\begin{equation}
+	\exp\!\left(-\frac{\|\vu - \vv\|^2}{4b^2}\right) \approx 1 - \frac{\|\vu\|^2 + \|\vv\|^2 - 2\vu^{\top}\vv}{4b^2} \enspace.
+\end{equation}
+After polynomial cancellation, the constant and quadratic terms vanish, leaving only the cross term $-2\vu^{\top}\vv$,
+\begin{equation}
+	\frac{1}{2b^2} \left[ \left( \sum_{i=1}^L w_i^x \vx_i \right)^\top \left( \sum_{j=1}^L w_j^x \vx_j \right) + \left( \sum_{i=1}^M w_i^y \vy_i \right)^\top \left( \sum_{j=1}^M w_j^y \vy_j \right) - 2 \left( \sum_{i=1}^L w_i^x \vx_i \right)^\top \left( \sum_{j=1}^M w_j^y \vy_j \right) \right] \enspace,
+\end{equation}
+\begin{equation}
+	= \frac{1}{2b^2} \left( \vmu_x^{\top} \vmu_x + \vmu_y^{\top} \vmu_y - 2\vmu_x^{\top} \vmu_y \right) = \frac{1}{2b^2} \|\vmu_x - \vmu_y\|^2 \enspace.
+\end{equation}
+Therefore, the discrepancy between two KDEs with very large bandwidths is equivalent to the discrepancy between the corresponding particle means.
+
+\subsubsection{Mathematical Principles of the Newton-Flow Filter}
+\label{subsubsec:newtonflow_principles}
+
+The \ac{nff} introduces a homotopy mechanism in which a virtual time $\gamma \in [0,1]$ is used as an exponent to incorporate the likelihood gradually into the prior distribution \cite{NFF}. The progressive likelihood is defined as
+\begin{equation}
+	f_L(\vx, \gamma) = [f_L(\vx)]^{g(\gamma)} \enspace,
+\end{equation}
+where $g(\gamma)$ is a progress function satisfying $g(0)=0$ and $g(1)=1$. When $\gamma=0$, $f_L(\vx,0)=1$, meaning that no measurement information has yet been introduced. When $\gamma=1$, $f_L(\vx,1)=f_L(\vx)$, meaning that the full likelihood has been incorporated.
+
+By combining the progressive likelihood with the prior distribution, we obtain the true posterior distribution $\tilde{f}_e(\vx,\gamma)$. In this true posterior, the particle positions remain fixed, whereas the weights $\tilde{w}_i(\gamma)$ vary continuously with virtual time,
+\begin{equation}
+	\widetilde{f}_e(\vx, \gamma) = \sum_{i=1}^L \tilde{w}_i(\gamma) \cdot \delta(\vx - \tilde{\vx}_i) \enspace,
+\end{equation}
+where the normalized weights are given by
+\begin{equation}
+	\widetilde{w}_i(\gamma) = \frac{f_L(\tilde{\vx}_i, \gamma)}{F_L(\tilde{\mX}, \gamma)}\enspace, \qquad F_L(\tilde{\mX}, \gamma) = \sum_{i=1}^L f_L(\tilde{\vx}_i, \gamma) \enspace.
+\end{equation}
+
+As $\gamma$ increases, the weights of the true posterior naturally degenerate. To avoid this, an approximate posterior $f_e(\vx, \veta(\gamma))$ with constant equal weights $w_i = 1/L$ and time-varying particle positions is used to approximate the true posterior,
+\begin{equation}
+	f_e(\vx,\veta(\gamma)) = \sum_{i=1}^L w_i \cdot \delta(\vx - \vx_i(\gamma)) \enspace,
+\end{equation}
+where the particle positions are collected in the parameter vector
+\begin{equation}
+	\veta(\gamma) = [\vx_1^{\top}(\gamma), \vx_2^{\top}(\gamma), \dots, \vx_L^{\top}(\gamma)]^{\top} \enspace,
+\end{equation}
+and the weight vector is the constant vector $\vw = \left[ \frac{1}{L}, \frac{1}{L}, \dots, \frac{1}{L} \right]^\top \enspace.$
+
+To make the approximate posterior track the true posterior, the modified Cramér--von Mises distance $D$ between them is defined as a function of $\veta(\gamma)$ and $\gamma$
+\begin{equation}
+	D(\veta(\gamma), \gamma) = D(\tilde{f}_e, f_e) \enspace.
+\end{equation}
+According to the necessary condition for an extremum, the gradient of the distance with respect to $\veta$ is set to zero,
+\begin{equation}
+	\mG(\veta(\gamma), \gamma) = \frac{\partial D(\veta(\gamma), \gamma)}{\partial \veta(\gamma)} = \vzero \enspace.
+	\label{eq:gradient_equation}
+\end{equation}
+If the gradient is zero at the initial state ($\gamma=0$), the approximation is locally optimal at that instant. To preserve this optimality throughout the homotopy process $\gamma \in [0,1]$, the particle set must evolve along a path on which the gradient remains zero. Taking the total derivative of both sides of \Eq{eq:gradient_equation} with respect to $\gamma$ and applying the multivariate chain rule yields
+\begin{equation}
+	\frac{\dd\mG(\veta(\gamma), \gamma)}{\dd\gamma} = \frac{\partial \mG(\veta(\gamma), \gamma)}{\partial \veta^{\top}(\gamma)} \cdot \frac{\partial \veta(\gamma)}{\partial \gamma} + \frac{\partial \mG(\veta(\gamma), \gamma)}{\partial \gamma} = \vzero \enspace.
+\end{equation}
+where $\frac{\partial \mG}{\partial \veta^{\top}}$ is the Hessian matrix $\mH(\veta(\gamma), \gamma)$; $\frac{\partial \veta}{\partial \gamma}$ is the particle velocity with respect to virtual time, denoted by $\dot{\veta}(\gamma)$; and $\frac{\partial \mG}{\partial \gamma}$ is the partial derivative of the gradient with respect to virtual time, denoted by $\mJ(\veta(\gamma), \gamma)$. Substituting these definitions yields the \ac{ode} governing the particle flow,
+\begin{equation}
+	\mH(\veta(\gamma), \gamma) \cdot \dot{\veta}(\gamma) + \mJ(\veta(\gamma), \gamma) = \vzero \enspace.
+\end{equation}
+
+This thesis focuses on the recursive Newton-Flow algorithm. The core idea of the recursive flow is that after an infinitesimal evolution in virtual time, the approximate posterior at the previous instant immediately replaces the true posterior and serves as a new prior for the continued incorporation of likelihood information. Because this new prior has already absorbed the historical likelihood information, an effective likelihood is introduced to prevent redundant incorporation,
+\begin{equation}
+	f_L^\text{eff}(\vx, \gamma) = \frac{f_L(\vx, \gamma)}{f_L(\vx, \gamma_*)} \enspace.
+\end{equation}
+
+Let $\gamma_*$ denote the previous virtual time and $\gamma$ the current one. Under this recursive framework, the true posterior at the current instant, $\tilde{f}_e(\vx,\gamma)$, evolves from the approximate posterior at the previous instant. This recursive relationship can be written as
+\begin{equation}
+	\widetilde{f}_e(\vx, \gamma) \propto \sum_{i=1}^L \left( \frac{1}{L} \cdot \frac{f_L(\vx_i(\gamma_*), \gamma)}{f_L(\vx_i(\gamma_*), \gamma_*)} \right) \cdot \delta(\vx - \vx_i(\gamma_*)) \enspace.
+\end{equation}
+
+Since the interval between $\gamma_*$ and $\gamma$ is infinitesimal (i.e., $\gamma_* \to \gamma$), the true posterior and the approximate posterior can, at any instant, be regarded as Dirac mixture densities with identical particle positions and equal weights (i.e., $M=L$, $\tilde{\vx}_i = \vx_i$, and $\tilde{w}_i(\gamma)=w_i=1/L$). As a consequence, the expressions for the partial derivative of the gradient $\mJ$ and for the Hessian matrix $\mH$ simplify substantially.
+
+The $k$-th component of the vector $\mJ$, denoted by $\mJ_k \in \IR^N$, is
+\begin{equation}
+	\mJ_k(\gamma) = -w_k \sum_{i=1}^L \left\{ 4\dot{w}_i(\gamma) \boldsymbol{\mathcal{G}}(\vx_k - \vx_i) + 2K\dot{w}_i(\gamma)\vx_i \right\} \enspace,
+\end{equation}
+where the nonlinear mapping $\boldsymbol{\mathcal{G}}(\vd)$ is defined as
+\begin{equation}
+	\boldsymbol{\mathcal{G}}(\vd) = \left[ \frac{\vd^{\top}\vd}{d_{\min}^2 + \vd^{\top}\vd} + \log(d_{\min}^2 + \vd^{\top}\vd) \right] \vd \enspace,
+\end{equation}
+and $d_{\min}^2$ is a constant introduced to prevent inter-particle distances from becoming zero.
+
+The derivative of the true posterior weight with respect to virtual time, $\dot{w}_i(\gamma)$, is obtained from
+\begin{equation}
+	{w}_i(\gamma) = \frac{f_L(\vx_i(\gamma_*),\gamma)}{F_L(\vx(\gamma_*), \gamma)f_L(\vx_i(\gamma_*),\gamma_*)} \enspace,
+\end{equation}
+where
+\begin{equation}
+	F_L(\vx(\gamma_*), \gamma) = \sum_{i=1}^L \frac{f_L(\vx_i(\gamma_*),\gamma)}{f_L(\vx_i(\gamma_*),\gamma_*)} \enspace.
+\end{equation}
+Differentiating with respect to $\gamma$ yields
+\begin{equation}
+	\begin{split}
+		\frac{\dd{w}_i(\gamma)}{\dd\gamma} = \frac{1}{F_L^2(\vx(\gamma_*), \gamma)} \bigg[ & F_L(\vx(\gamma_*), \gamma) f_L(\vx_i(\gamma_*))^{g(\gamma)-g(\gamma_*)} \dot{g}(\gamma) \ln(f_L(\vx_i(\gamma_*))) \\
+		& - f_L(\vx_i(\gamma_*))^{g(\gamma)-g(\gamma_*)} \sum_{j=1}^L f_L(\vx_j(\gamma_*))^{g(\gamma)-g(\gamma_*)} \dot{g}(\gamma) \ln(f_L(\vx_j(\gamma_*))) \bigg] \enspace,
+	\end{split}
+\end{equation}
+where
+\begin{equation}
+	\dot{g}(\gamma)=\frac{\dd g(\gamma)}{\dd \gamma} \enspace.
+\end{equation}
+Taking the limit $\gamma_* \to \gamma$ gives
+\begin{equation}
+	\lim_{\gamma_* \to \gamma} \frac{\dd{w}_i(\gamma)}{\dd\gamma} = \frac{\dot{g}(\gamma)\ln(f_L(\vx_i))}{L}-\frac{\sum_{j=1}^L \dot{g}(\gamma)\ln(f_L(\vx_j))}{L^2} \enspace.
+\end{equation}
+
+The limit $\gamma_* \to \gamma$ corresponds mathematically to continuously replacing the true posterior by its optimal approximation throughout the \ac{ode} evolution.
+
+In block form, the Hessian matrix $\mH$ also simplifies substantially. The diagonal block $\mH_{kk} \in \IR^{N \times N}$ takes the diagonal form
+\begin{equation}
+	\mH_{kk} = 2 w_k^2 \left\{ K - 2 \log(d_{\min}^2) \right\} \mI_N \enspace,
+\end{equation}
+and the off-diagonal block $\mH_{kl} \in \IR^{N \times N}$ for $k \neq l$ is
+\begin{equation}
+	\mH_{kl} = 2 w_k w_l \left\{ K \mI_N - 2\mathcal{H}(\vx_k - \vx_l) \right\} \enspace,
+	\label{eq:Hkl}
+\end{equation}
+where the kernel $\mathcal{H}(\vd)$, derived from the second-order partial derivative of the distance measure, is
+\begin{equation}
+	\mathcal{H}(\vd) = 2\frac{2 d_{\min}^2 + \vd^{\top}\vd}{(d_{\min}^2 + \vd^{\top}\vd)^2} \vd\vd^{\top} + \left[ \frac{\vd^{\top}\vd}{d_{\min}^2 + \vd^{\top}\vd} + \log(d_{\min}^2 + \vd^{\top}\vd) \right] \mI_N \enspace.
+	\label{eq:h}
+\end{equation}
+% By solving the linear \ac{ode} system $\mH \dot{\veta} = -\mJ$, the particle velocity $\dot{\veta}$ is obtained, driving the particle set continuously toward the final posterior distribution while preserving equal weights.
+By solving the linear \ac{ode} system
+\[
+\mH(\veta(\gamma),\gamma)\,\dot{\veta}(\gamma)=-\mJ(\veta(\gamma),\gamma)\enspace,
+\]
+the particle velocity \(\dot{\veta}(\gamma)\) is obtained. Starting from the prior particle set at \(\gamma=0\), integrating the flow over \(\gamma\in[0,1]\) transports the particles continuously to the posterior at \(\gamma=1\) while preserving equal weights,
+\begin{equation}
+\veta(1)=\veta(0)+\int_{0}^{1}\dot{\veta}(\gamma)\,\mathrm d\gamma\enspace.
+\label{eq:eta_flow_prior_posterior}
+\end{equation}
+
+In the modified Cramér--von Mises distance \Eq{eq:CVM_Distance}, the penalty term $D_E$ in \Eq{eq:CVM_DE} only enforces agreement between the means of the true and approximate posteriors. However, it is also desirable to preserve covariance consistency. Since the covariance matrix is determined by the second-order raw moment and the mean, i.e.,
+\[
+\text{Var}(\mX) = \mathbb{E}[\mX\mX^{\top}] - \mathbb{E}[\mX]\mathbb{E}[\mX]^{\top} \enspace,
+\]
+and the mean is already aligned by $D_E$, it is sufficient to penalize the discrepancy in the second-order raw moments.
+
+Let $\mC$ and $\tilde{\mC}$ denote the second-order raw moment matrices of the approximate posterior and the true posterior, respectively,
+\begin{equation}
+	\mC = \sum_{i=1}^L w_i \vx_i \vx_i^{\top}, \quad \tilde{\mC} = \sum_{j=1}^M \tilde{w}_j \tilde{\vx}_j \tilde{\vx}_j^{\top} \enspace.
+\end{equation}
+
+Introducing a constant penalty coefficient $K_{\text{cov}}$, the squared Frobenius norm of the difference between these matrices is defined as the additional penalty term $D_{\text{cov}}$ given by
+\begin{equation}
+	D_{\text{cov}} = \|\mC - \tilde{\mC}\|_F^2 = \text{tr}\!\left( (\mC - \tilde{\mC})^{\top} (\mC - \tilde{\mC}) \right) \enspace.
+\end{equation}
+Because both $\mC$ and $\tilde{\mC}$ are symmetric, this expression simplifies to
+\begin{equation}
+	D_{\text{cov}} = \text{tr}\!\left( (\mC - \tilde{\mC})^2 \right) \enspace.
+	\label{eq:D_Cov}
+\end{equation}
+Its partial derivative with respect to the particle position $\vx_k$ is computed as
+\begin{equation}
+	\dd\,(D_{\text{cov}}) = 2 \text{tr}\!\left( (\mC - \tilde{\mC}) \dd\mC \right) \enspace,
+\end{equation}
+where
+\begin{equation}
+	\dd\mC = w_k (\dd\vx_k \vx_k^{\top} + \vx_k \dd\vx_k^{\top}) \enspace.
+\end{equation}
+Substituting this into the trace expression and using the identities $\text{tr}(\mA\mB)=\text{tr}(\mB\mA)$, $\text{tr}(\vx\vy^{\top})=\text{tr}(\vy^{\top}\vx)$ \cite{MC}, and $\mC=\mC^{\top}$, one obtains
+\begin{equation}
+	\dd\,(D_{\text{cov}}) = 4 w_k \text{tr}\!\left( \dd\vx_k^{\top} (\mC - \tilde{\mC}) \vx_k \right) = \left( 4 w_k (\mC - \tilde{\mC}) \vx_k \right)^{\top} \dd\vx_k \enspace.
+\end{equation}
+Hence, the additional gradient term induced by the covariance penalty is
+\begin{equation}
+	\mG_{k, \text{cov}} = \frac{\partial (K_{\text{cov}} D_{\text{cov}})}{\partial \vx_k} = 4 K_{\text{cov}} w_k (\mC - \tilde{\mC}) \vx_k \enspace.
+\end{equation}
+The partial derivative of this additional gradient with respect to virtual time $\gamma$, denoted by $\mJ_{k, \text{cov}}$, is
+\begin{equation}
+	\mJ_{k, \text{cov}} = \frac{\partial \mG_{k, \text{cov}}}{\partial \gamma} = -4 K_{\text{cov}} w_k \left( \sum_{j=1}^M \dot{\tilde{w}}_j \tilde{\vx}_j \tilde{\vx}_j^{\top} \right) \vx_k \enspace.
+\end{equation}
+Using the recursive flow and taking the limit $\gamma_* \to \gamma$ yields
+\begin{equation}
+	\mJ_{k, \text{cov}} = -4 K_{\text{cov}} w_k \sum_{i=1}^L \dot{w}_i (\vx_k^{\top} \vx_i) \vx_i \enspace.
+\end{equation}
+The Hessian matrix captures how the gradient $\mG_{k,\text{cov}}$ changes with respect to all particle positions, which leads to
+\begin{equation}
+	\dd\,(\mG_{k, \text{cov}}) = 4 K_{\text{cov}} w_k \left[ \dd\,(\mC - \tilde{\mC}) \vx_k + (\mC - \tilde{\mC}) \dd\vx_k \right] \enspace.
+\end{equation}
+Taking the partial derivative with respect to $\vx_k$ means that virtual time is held fixed. Since the true density and the approximate density coincide exactly at any instant in the recursive flow, we have $\mC = \tilde{\mC}$, and therefore
+\begin{equation}
+	\dd\,(\mG_{k, \text{cov}}) = 4 K_{\text{cov}} w_k (\dd\mC) \vx_k \enspace.
+\end{equation}
+Substituting $\dd\mC = w_l (\dd\vx_l \vx_l^{\top} + \vx_l \dd\vx_l^{\top})$ gives
+\begin{equation}
+	\dd\,(\mG_{k, \text{cov}}) = 4 K_{\text{cov}} w_k w_l \left( \dd\vx_l \vx_l^{\top} \vx_k + \vx_l \dd\vx_l^{\top} \vx_k \right) \enspace.
+\end{equation}
+
+Since $\vx_l^{\top} \vx_k$ is a scalar and $\dd\vx_l^{\top} \vx_k = \vx_k^{\top} \dd\vx_l$, the common column vector $\dd\vx_l$ can be factored out, and the identity matrix $\mI_N$ can be introduced, yielding
+\begin{equation}
+	\dd\,(\mG_{k, \text{cov}}) = \underbrace{4 K_{\text{cov}} w_k w_l \left[ (\vx_k^{\top} \vx_l) \mI_N + \vx_l \vx_k^{\top} \right]}_{\mH_{kl, \text{cov}}} \dd\vx_l \enspace.
+\end{equation}
+Thus, the blockwise analytical expressions for the additional Hessian matrix $\mH_{\text{cov}}$ are obtained directly. For the off-diagonal blocks ($k \neq l$),
+\begin{equation}
+	\mH_{kl, \text{cov}} = 4 K_{\text{cov}} w_k w_l \left( (\vx_k^{\top} \vx_l) \mI_N + \vx_l \vx_k^{\top} \right) \enspace,
+\end{equation}
+and for the diagonal blocks ($k = l$),
+\begin{equation}
+	\mH_{kk, \text{cov}} = 4 K_{\text{cov}} w_k^2 \left( (\vx_k^{\top} \vx_k) \mI_N + \vx_k \vx_k^{\top} \right) \enspace.
+\end{equation}
+
+In summary, after adding the second-order moment penalty, the distance becomes
+\begin{equation}
+	D_{\text{new}} = D_{\text{original}} + K_{\text{cov}} D_{\text{cov}} \enspace.
+\end{equation}
+By linearity, the partial derivative of the gradient and the Hessian matrix in the \ac{ode} are updated accordingly as
+\begin{equation}
+	\mJ_{\text{new}} = \mJ_{\text{original}} + \mJ_{\text{cov}} \enspace,
+\end{equation}
+and
+\begin{equation}
+	\mH_{\text{new}} = \mH_{\text{original}} + \mH_{\text{cov}} \enspace.
+\end{equation}
+
+\section{Evaluation Metrics and Test Model}
+\label{sec:evaluation_metrics}
+
+\subsection{Lorenz 96 System}
+\label{subsec:lorenz96}
+
+To systematically compare the performance of \ac{gpf} and \ac{nff} under high-dimensional nonlinear conditions, this study adopts the Lorenz 96 dynamical system as the test model. This system is highly nonlinear and chaotic, meaning that even tiny differences in the initial state grow rapidly over time. Because of this chaos and strong nonlinear mapping, the true prior and posterior distributions of the system state often become highly complex. This makes the Lorenz 96 system an excellent benchmark for validating advanced nonlinear filtering algorithms.
+
+The system equation of the Lorenz 96 system can be described by the \ac{sde}
+\begin{equation}
+	\dd\vx_t = \mathbf{f}(\vx_t) \dd t + \mG \dd\mathbf{W}_t \enspace,
+\end{equation}
+where $\vx_t \in \IR^N$ is the system state vector, $\mathbf{f}(\vx_t)$ is the nonlinear vector field defined by the Lorenz 96 dynamics, $\dd\mathbf{W}_t$ is a multidimensional standard Wiener process, and $\mG$ is the diffusion matrix. If the noise in each dimension is assumed to be independent with intensity $\sigma$, then $\mG = \sigma \mI$.
+
+For the $i$-th state variable $x_i$, the state equation is
+\begin{equation}
+	\dd x_i = \underbrace{\left[ (x_{i+1} - x_{i-2})x_{i-1} - x_i + F \right]}_{\text{Drift}} \dd t + \underbrace{\sum_{j=1}^{N} G_{ij} \dd W_{j,t}}_{\text{Diffusion}} \enspace.
+\end{equation}
+
+Its measurement equation is a standard linear discrete-time equation given by
+\begin{equation}
+	\vy_k = \mH \vx_k + \vn_k \enspace,
+\end{equation}
+where $\vy_k$ is the observation vector at time step $k$, $\mH$ is the linear observation matrix, and $\vn_k$ is the discrete measurement noise.
+
+Thus, the main challenge in state estimation arises from the strong nonlinearity of the system equation. The likelihood information provided by the linear observations must correct the highly non-Gaussian prior induced by the nonlinear dynamics in order to obtain the posterior. In the comparative experiments, all true states and observation data $\vy_k$ are generated by high-precision numerical integration of the \ac{sde}.
+
+\subsection{Filter Evaluation Metrics}
+\label{subsec:evaluation_metrics}
+
+To compare the performance of \ac{nff} and \ac{gpf} from multiple perspectives, this study uses independent Monte Carlo simulations. Five core metrics are employed: \ac{rmse}, \ac{gae}, \ac{rfe}, \ac{merf}, and \ac{anees}. To ensure consistent notation, let $S$ denote the total number of Monte Carlo runs and $T$ denote the total number of discrete time steps. In the $s$-th simulation at time step $k$, $\vx_{s,k}$ denotes the true state vector, $\hat{\vx}_{s,k}$ the estimated state vector (posterior mean), $\vy_{s,k}$ the noisy observation, $h(\vx_{s,k})$ the noise-free observation, and $\mP_{s,k}$ the posterior covariance matrix.
+
+\paragraph{2.4.2.1 Root Mean Square Error}
+\ac{rmse} is the most fundamental metric for quantifying the discrepancy between the estimated and true states. For stepwise evaluation, the \ac{rmse} at time step $k$ is defined as the square root of the arithmetic mean of the squared estimation errors over all $S$ simulations as
+\begin{equation}
+	\text{RMSE}_k = \sqrt{ \frac{1}{S} \sum_{s=1}^{S} \|\vx_{s,k} - \hat{\vx}_{s,k}\|^2 } \enspace.
+\end{equation}
+To evaluate the overall accuracy over the full time horizon, the global \ac{rmse} is defined as
+\begin{equation}
+	\text{RMSE} = \sqrt{ \frac{1}{S \cdot T} \sum_{s=1}^{S} \sum_{k=1}^{T} \|\vx_{s,k} - \hat{\vx}_{s,k}\|^2 } \enspace.
+\end{equation}
+\ac{rmse} is highly sensitive to outliers because it is based on squared errors and arithmetic averaging. If the filter diverges in a small number of simulations, the squared term magnifies these large errors and can substantially increase the overall \ac{rmse}. Therefore, \ac{rmse} reflects overall filtering accuracy while being strongly influenced by extreme failure cases.
+
+\paragraph{2.4.2.2 Geometric Average Error}
+To reduce the sensitivity of \ac{rmse} to a few divergence cases, this study also introduces the \ac{gae}. Like \ac{rmse}, \ac{gae} measures the discrepancy between the estimated and true states, but it replaces the arithmetic mean with a geometric mean. The stepwise \ac{gae} is defined as
+\begin{equation}
+	\text{GAE}_k = \left( \prod_{s=1}^{S} \|\vx_{s,k} - \hat{\vx}_{s,k}\| \right)^{\frac{1}{S}} \enspace.
+\end{equation}
+The global \ac{gae} is then computed by averaging the stepwise \ac{gae} values over time as
+\begin{equation}
+	\text{GAE} = \frac{1}{T} \sum_{k=1}^{T} \text{GAE}_k \enspace.
+\end{equation}
+
+Unlike \ac{rmse}, \ac{gae} is much more robust to outliers. In complex nonlinear filtering scenarios, even if the filter diverges completely in a few runs, the overall \ac{gae} can remain relatively stable. Comparing \ac{rmse} with \ac{gae} helps distinguish whether poor performance is persistent across runs or primarily driven by a small number of extreme outliers.
+
+\paragraph{2.4.2.3 Relative Frobenius Error}
+The Relative Frobenius Error measures the discrepancy between the estimated covariance matrix $\mP_{s,k}$ and the true analytical covariance matrix $\mat{\Sigma}_{\text{true}, k}$, defined as
+\begin{equation}
+	\text{RFE}_{s,k} = \frac{\|\mP_{s,k} - \mat{\Sigma}_{\text{true}, k}\|_F}{\|\mat{\Sigma}_{\text{true}, k}\|_F} \enspace,
+	\label{eq:Rfe}
+\end{equation}
+where $\|\cdot\|_F$ denotes the Frobenius norm. Intuitively, the numerator $\|\mP_{s,k} - \mat{\Sigma}_{\text{true}, k}\|_F$ is the root-sum-square of the elementwise differences between the estimated and true covariance matrices, while the denominator scales this absolute error into a relative measure. A value closer to zero indicates that the filter provides a more accurate self-assessment of its estimation uncertainty.
+
+\paragraph{2.4.2.4 Measurement Error Reduction Factor}
+The \ac{merf} provides an intuitive measure of whether a filter effectively reduces noise. It is defined as the ratio between the estimation-to-clean-measurement error and the noisy-to-clean-measurement error.
+
+The stepwise \ac{merf} is defined as
+\begin{equation}
+	\text{MERF}_k = \sqrt{ \frac{\sum_{s=1}^{S} \|h(\vx_{s,k}) - h(\hat{\vx}_{s,k})\|^2}{\sum_{s=1}^{S} \|h(\vx_{s,k}) - \vy_{s,k}\|^2} } \enspace.
+\end{equation}
+The global \ac{merf} over the full time horizon $T$ is defined as
+\begin{equation}
+	\text{MERF} = \sqrt{ \frac{\sum_{k=1}^{T} \sum_{s=1}^{S} \|h(\vx_{s,k}) - h(\hat{\vx}_{s,k})\|^2}{\sum_{k=1}^{T} \sum_{s=1}^{S} \|h(\vx_{s,k}) - \vy_{s,k}\|^2} } \enspace.
+\end{equation}
+
+If $\text{MERF} < 1$, the filtered observation error is smaller than the original sensor noise, indicating that the filter has successfully reduced the noise. If $\text{MERF} > 1$, the filter introduces additional inaccuracies, meaning that the estimate performs worse than the raw sensor data.
+
+\paragraph{2.4.2.5 Average Normalized Estimation Error Squared}
+\ac{anees} is a widely used metric for evaluating filter consistency. It quantifies the accuracy of the covariance estimate by comparing the magnitude of the actual estimation error with the covariance matrix $\mP_{s,k}$ estimated by the filter. First, the Normalized Estimation Error Squared (NEES) for a single simulation $s$ at time step $k$ is defined as
+\begin{equation}
+	\epsilon_{s,k} = (\vx_{s,k} - \hat{\vx}_{s,k})^{\top} \inv{\mP_{s,k}} (\vx_{s,k} - \hat{\vx}_{s,k}) \enspace.
+\end{equation}
+
+Then, based on $S$ independent Monte Carlo simulations, the stepwise \ac{anees} at time step $k$ is obtained by averaging the NEES values and normalizing by the state dimension $N_x$ as
+\begin{equation}
+	\text{ANEES}_k = \frac{1}{S N_x} \sum_{s=1}^{S} \epsilon_{s,k} \enspace.
+\end{equation}
+
+The global \ac{anees} over the full time horizon $T$ is defined as
+\begin{equation}
+	\text{ANEES} = \frac{1}{S T N_x} \sum_{s=1}^{S} \sum_{k=1}^{T} \epsilon_{s,k} \enspace.
+\end{equation}
+
+The interpretation of \ac{anees} is straightforward. Ideally, for a fully consistent filter, the \ac{anees} value should be close to $1$.
+
+If $\text{ANEES} > 1$, then $\mP_{s,k}$ is generally smaller than the actual error covariance, meaning that the filter's true error is large while its estimated variance is small. In this case, the filter is overconfident.
+
+If $\text{ANEES} < 1$, then $\mP_{s,k}$ is generally larger than the actual error covariance, meaning that the filter is accurate but its estimated variance is too large. In this case, the filter is conservative.

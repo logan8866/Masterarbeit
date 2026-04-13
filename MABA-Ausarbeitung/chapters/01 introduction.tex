@@ -1,0 +1,37 @@
+\chapter{Introduction}
+\label{chap:introduction}
+
+\section{Background and Motivation}
+
+In practical applications, the true system state usually cannot be measured directly by sensors, and observations are often contaminated by noise. The process of inferring the system state from these noisy observations together with the system's dynamical model is known as state estimation. State estimation plays a crucial role in numerous fields, including flight navigation and target tracking in aerospace \cite{Mourikis2007, Singer1970}, multi-sensor fusion localization for autonomous vehicles \cite{Mourikis2007}, robotic environment mapping \cite{Grisetti2007}, as well as weather forecasting and ocean fluid dynamics analysis \cite{Houtekamer1998}. As modern physical and engineering systems become increasingly complex, they often exhibit strong nonlinear dynamics and high-dimensional state spaces. In such systems, the pronounced nonlinearity of the model often causes the posterior distribution of the system state to exhibit significant non-Gaussian characteristics.
+
+As a nonlinear filtering method, the particle filter\cite{PF01} does not require the system to be linear or the noise to be Gaussian, and is therefore widely used in nonlinear state estimation. However, when applied to high-dimensional nonlinear problems, classical particle filters face several well-known challenges. The first is particle degeneracy. As filtering proceeds, the weights of most particles collapse to near zero, leaving only a small number of effective particles. To address this issue, resampling is introduced to discard low-weight particles and replicate high-weight particles. However, resampling reduces particle diversity and can lead to sample impoverishment. Furthermore, as the system dimension increases, classical particle filters require an exponentially growing number of particles simply to maintain a basic level of filtering accuracy.
+
+By introducing a homotopy mechanism\cite{Homotopy01,Homotopy02}, the \ac{nff} gradually incorporates the observation likelihood into the prior distribution. This allows particles to maintain equal weights throughout the update step, thereby avoiding particle degeneracy and sample impoverishment. However, the feasibility and filtering performance of this algorithm in high-dimensional nonlinear systems have not yet been fully validated. Therefore, this study aims to systematically compare and analyze the performance of the \ac{nff}, the \ac{pf}, and the \ac{gpf} in high-dimensional nonlinear state estimation problems.
+
+\section{Problem Statement and Research Gap}
+
+However, the application of the \ac{nff} to high-dimensional nonlinear systems currently faces three main challenges.
+
+The first challenge concerns computational efficiency and GPU memory usage. Without optimization, the \ac{nff} requires a long computation time at each step. It requires the explicit computation and storage of an extremely high-dimensional Hessian matrix of size $NL \times NL$, where $N$ denotes the state dimension and $L$ denotes the number of particles. During multithreaded parallel execution, the size of this matrix leads to severe out-of-memory errors. These limitations in computational efficiency and memory usage significantly hinder the large-scale parallel validation of the algorithm.
+
+The second challenge is that the prediction mechanism remains incomplete. Current \ac{nff} theory primarily focuses on the update step, while the prediction step has not yet been fully developed.
+
+The third challenge is the lack of validation in high-dimensional nonlinear systems. So far, the \ac{nff} has not been extensively validated on high-dimensional nonlinear systems such as the 10-dimensional Lorenz 96 model. Under practically relevant conditions—such as different noise levels, varying degrees of nonlinearity, model parameter mismatch, and extreme noise conditions—the filtering performance of the \ac{nff} remains unclear.
+
+Accordingly, this study aims to improve the computational efficiency of the \ac{nff}, resolve the GPU out-of-memory issue during parallel computation, complete the prediction step, and compare its filtering performance with that of \ac{pf} and \ac{gpf} on the 10-dimensional Lorenz 96 system.
+
+\clearpage
+
+\section{Thesis Outline}
+The thesis is organized as follows:
+
+\textbf{\Cref{chap:theoretical_foundations}: \nameref{chap:theoretical_foundations}} This chapter provides the theoretical foundation for the subsequent optimization of the \ac{nff} implementation and the comparative experiments. First, it reviews the basic theoretical framework of nonlinear Bayesian filtering and describes the fundamentals of \ac{pf} and \ac{gpf}, along with their limitations in high-dimensional systems. Next, it introduces the mathematical principles of the \ac{nff}. Finally, it presents the 10-dimensional nonlinear Lorenz 96 dynamical model and measurement model used in the comparative experiments, and introduces the evaluation metrics used to assess filtering performance.
+
+\textbf{\Cref{chap:implementation}: \nameref{chap:implementation}} The first part focuses on code optimization, including zero-allocation programming, type stability, column-wise memory access\cite{JULIA}, the elimination of redundant computations based on symmetry, and the use of the \ac{minres} and \ac{vcabm} solvers\cite{NME}. It also describes the derivation of a matrix-free formulation of the \ac{nff}, which resolves GPU out-of-memory issues during multithreaded parallel execution. The second part explains the three prediction mechanisms required for a complete \ac{nff} filtering process. It also describes how numerical techniques are applied in the third prediction mechanism to resolve the numerical overflow and slow integration issues encountered during LCD deterministic sampling from an extremely high-dimensional Gaussian distribution of dimension $N \times L$.
+
+\textbf{\Cref{ch:gaussian_fusion}: \nameref{ch:gaussian_fusion}} By designing a series of single-step Gaussian fusion experiments with controlled variables, this chapter compares the filtering results of \ac{nff}, \ac{pf}, and \ac{gpf} with the analytical posterior solution. It analyzes the effects of likelihood parameters (mean and variance), particle count, the shape of the homotopy function, internal parameters (such as regularization parameters and penalty coefficients), and system dimensionality on state estimation accuracy and computational efficiency. It also evaluates the performance of the \ac{nff} under multimodal likelihood scenarios, thereby providing an objective analysis of its advantages and limitations in different situations.
+
+\textbf{\Cref{chap:lorenz96_experiments}: \nameref{chap:lorenz96_experiments}} This chapter evaluates the performance of \ac{nff}, \ac{pf}, and \ac{gpf} on the 10-dimensional Lorenz 96 system across various scenarios, including different noise levels, degrees of nonlinearity, model mismatch, and extreme conditions.
+
+\textbf{\Cref{chap:conclusion}: \nameref{chap:conclusion}} This chapter summarizes the main findings of the thesis and discusses possible directions for future work.

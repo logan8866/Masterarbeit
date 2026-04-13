@@ -1,0 +1,63 @@
+%\documentclass[german,reviews,examples]{isasthesis}
+% \documentclass[english,reviews,examples]{isasthesis}
+\documentclass[english]{isasthesis}
+\usepackage[utf8]{inputenc}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Edit notation.tex if necessary
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+% Document properties
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{Comparison of Newton-Flow Particle Filters and Classical
+	Particle Filters in High-Dimensional Nonlinear Systems}
+\author{Yiqing Wang}
+\date{April 2026}
+
+\thesistype{Master Thesis}
+\firstsupervisor{Prof. Dr.-Ing. Uwe D. Hanebeck}
+\secondsupervisor{Dr. Daniel Frisch}
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+% Document
+%%%%%%%%%%%%%%%%%%%%%%%%
+\clubpenalty = 100000
+\brokenpenalty = 100000
+\finalhyphendemerits = 100000
+\displaywidowpenalty = 1000000
+\widowpenalty = 1000000
+\usepackage{makecell}
+\usepackage{bm}
+\usepackage{listings}
+\usepackage[nameinlink]{cleveref}
+\usepackage{acro}
+\input{Abbreviations}
+\begin{document}
+	\maketitle
+	
+	\begin{abstract}
+		This thesis compares the performance of the \ac{nff}, the \ac{pf}, and the \ac{gpf} in high-dimensional nonlinear systems.
+		
+		First, a matrix-free formulation of \ac{nff} is derived, which avoids the explicit construction and storage of the high-dimensional Hessian matrix in the update step and thereby resolves the GPU out-of-memory problem encountered during multithreaded parallel computation. Next, the prediction step of \ac{nff} is completed by introducing three prediction mechanisms required for a complete filtering procedure, and the numerical overflow and computational inefficiency arising in the third prediction mechanism during deterministic sampling in high-dimensional spaces are addressed. Furthermore, for continuous-time systems such as the Lorenz 96 system, an Euler-Maruyama-inspired deterministic prediction method is proposed, allowing the macroscopic noise samples obtained by deterministic sampling to be injected continuously into the system evolution during numerical integration, thereby preserving the coupling between the noise term and the nonlinear dynamics in a more reasonable way.
+		
+		In the experimental part, single-step Gaussian fusion experiments are first conducted to analyze the influence of different likelihood variances, likelihood means, state dimensions, and internal \ac{nff} parameters on filtering performance. The results show that when the likelihood distribution is very narrow, when the prior and likelihood means are far apart, or when the state dimension increases, the errors of \ac{pf} and \ac{gpf} increase significantly, whereas \ac{nff} still maintains relatively good estimation accuracy. At the same time, the results indicate that a larger number of particles does not necessarily lead to better performance for \ac{nff}; under the settings considered in this thesis, a moderate number of particles achieves the best overall results. In addition, the covariance-constrained version does not yield better performance in the present experiments. Moreover, in bimodal scenarios, \ac{nff} causes the particle set to flow as a whole toward one of the two modes, indicating that it still has limitations in handling multimodal posteriors.
+		
+		Subsequently, comparative experiments are carried out in the 10-dimensional Lorenz 96 system under different levels of observation noise, system process noise, system nonlinearity, model mismatch, and extreme conditions. The results show that under high-precision observations, large process noise, and strong nonlinearity, \ac{nff} is better able to preserve particle diversity, reduce error amplification, and outperform \ac{pf} and \ac{gpf}. In particular, the advantage of \ac{nff} becomes especially pronounced when the observation noise is very small or the system noise is large. The model mismatch experiments also show that \ac{nff} has good stability and robustness under various mismatch conditions. However, when the system nonlinearity becomes so strong that the prediction model can no longer provide useful prior information, the performance of \ac{nff} also deteriorates. Overall, \ac{nff} demonstrates strong potential for high-dimensional nonlinear state estimation.
+	\end{abstract}
+	
+	\maketoc
+
+	\input{chapters/01 introduction}
+	\input{chapters/02 Theoretical Background}
+	\input{chapters/03 Optimization and prediction}
+	\input{chapters/04 Gauss Fusion}
+	\input{chapters/05 lorenz96 experiemnt}
+	\input{chapters/06 conclusion}
+	\appendix
+	\include{chapters/appendix}
+
+	\makebibliography{references}
+	
+\end{document}
